@@ -1,12 +1,21 @@
 import { StatusBar } from 'expo-status-bar';
 import { Component, useState } from 'react';
-import { Button, FlatList, StyleSheet, Text, View, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { TYPE, mockData } from './mockData';
+import { FlatList, StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
 import axios from 'axios';
 
-const Type: React.FunctionComponent<{types: string[]}> = ({types}) => {
+const Type: React.FunctionComponent<{types: string[], updateSelectedType: Function}> = ({types, updateSelectedType}) => {
+  const [typeList, setTypeList] = useState([] as string[]);
   const btnList = types.map(item => {
-    return <TypeButton key={item} title={item} />;
+    return <TypeButton key={item} title={item} addType={(name: string) => {setTypeList([...typeList, name]); updateSelectedType([...typeList, name])}} removeType={(name: string) => {
+      const tempList: string[] = [];
+      typeList.forEach(item => {
+        if (item !== name) {
+          tempList.push(item);
+        }
+      });
+      setTypeList(tempList);
+      updateSelectedType(tempList);
+    }} />;
   });
   return (
     <View style={styles.flexContainer}>
@@ -16,23 +25,23 @@ const Type: React.FunctionComponent<{types: string[]}> = ({types}) => {
       <View style={styles.flexContainer}>
         {btnList}
       </View>
-      {/* <FlatList
-        data={types}
-        renderItem={({item}) => {
-          return <TypeButton title={item} />;
-        }}
-        horizontal={true}
-      /> */}
     </View>
   );
 };
 
-const TypeButton: React.FunctionComponent<{title: string}> = ({title}) => {
+const TypeButton: React.FunctionComponent<{title: string, addType: Function, removeType: Function}> = ({title, addType, removeType}) => {
   let [selected, setSelected] = useState(false);
   return (
     <TouchableOpacity
       style={selected ? styles.buttonSelectStyle : styles.buttonStyle}
-      onPress={() => setSelected(!selected)}
+      onPress={() => {
+        setSelected(!selected);
+        if (selected) {
+          removeType(title);
+        } else {
+          addType(title);
+        }
+      }}
     >
       <Text style={selected ? styles.buttonSelectText : styles.buttonText}>{title}</Text>
     </TouchableOpacity>
@@ -48,7 +57,7 @@ const Result: React.FunctionComponent<{resultList: any[]}> = ({resultList}) => {
     <View>
       <Text style={styles.boldFont}>{resultList.length} results found</Text>
       <FlatList
-        data={resultList.slice((pager - 1) * 48, pager * 48 > resultList.length ? (resultList.length - 1) : pager * 48)}
+        data={resultList.slice((pager - 1) * 48, pager * 48 > resultList.length ? resultList.length : pager * 48)}
         renderItem={({item}) => {
           return <ResultItem result={item} />;
         }}
@@ -85,6 +94,10 @@ const Result: React.FunctionComponent<{resultList: any[]}> = ({resultList}) => {
 };
 
 const ResultItem: React.FunctionComponent<{result: any}> = ({result}) => {
+  // const [imgUrl, setImgUrl] = useState('');
+  // axios.get('https://pokeapi.co/api/v2/pokemon/41/').then(res => {
+  //   setImgUrl('https://reactnative.dev/img/tiny_logo.png');
+  // });
   return (
     <View style={styles.container}>
       <View>
@@ -100,21 +113,62 @@ const ResultItem: React.FunctionComponent<{result: any}> = ({result}) => {
 
 class Main extends Component {
   state: any = {
+    totalResultList: [],
     typeList: [],
-    resultList: []
+    resultList: [],
+    filterTypes: [] as string[],
+    typeInfo: new Map()
   };
   componentDidMount(): void {
     axios.get('https://pokeapi.co/api/v2/type').then((res: { data: any; }) => {
-      this.setState({ typeList: res.data.results.map((item: { name: string; }) => item.name)});
+      this.setState({ typeList: res.data.results});
+      res.data.results.forEach((item: { url: string; name: any; }) => {
+        axios.get(item.url).then(res => {
+          this.state.typeInfo.set(item.name, res.data.pokemon);
+        });
+      })
     });
     axios.get('https://pokeapi.co/api/v2/pokemon?limit=1200').then(res => {
-    this.setState({ resultList: res.data.results });
+      this.setState({ resultList: res.data.results, totalResultList: res.data.results });
     });
   }
   render() {
     return (
     <View style={styles.container}>
-      <Type types={this.state.typeList} />
+      <Type types={this.state.typeList.map((item: { name: string; }) => item.name)} updateSelectedType={(types: string[]) => {
+        this.setState({ filterTypes: types });
+        if (types.length === 0) {
+          this.setState({
+            resultList: this.state.totalResultList
+          });
+        } else if (types.length === 1) {
+          this.setState({
+            resultList: this.state.typeInfo.get(types[0]).map((item: { pokemon: any; }) => item.pokemon)
+          });
+        } else {
+          const firstArr = this.state.typeInfo.get(types[0]);
+          const tempList = [] as any[];
+          firstArr.forEach((item: { pokemon: { name: string; }; }) => {
+            const name = item.pokemon.name;
+            let contain = false;
+            for (let i = 1; i < types.length; i++) {
+              const list = this.state.typeInfo.get(types[i]);
+              if (list.some((item: { pokemon: { name: string; }; }) => item.pokemon.name === name)) {
+                contain = true;
+              } else {
+                contain = false;
+                break;
+              }
+            }
+            if (contain) {
+              tempList.push(item);
+            }
+          });
+          this.setState({
+            resultList: tempList.map(item => item.pokemon)
+          });
+        }
+      }} />
       <Result resultList={this.state.resultList} />
       <StatusBar style="auto" />
       {/* <View style={{position: 'absolute', width: '100%', height: '100%', top: 0, alignItems: 'center', justifyContent: 'center'}}>
