@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { Component, useState } from 'react';
+import { Component, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
 import axios from 'axios';
 
@@ -94,19 +94,28 @@ const Result: React.FunctionComponent<{resultList: any[]}> = ({resultList}) => {
 };
 
 const ResultItem: React.FunctionComponent<{result: any}> = ({result}) => {
-  // const [imgUrl, setImgUrl] = useState('');
-  // axios.get('https://pokeapi.co/api/v2/pokemon/41/').then(res => {
-  //   setImgUrl('https://reactnative.dev/img/tiny_logo.png');
-  // });
+  const [imgUrl, setImgUrl] = useState(() => {
+    axios.get(result.url).then(res => {
+      const sprites = res.data.sprites;
+      setImgUrl(sprites.other['official-artwork'].front_default);
+    });
+    return '';
+  });
+  useEffect(() => {
+    axios.get(result.url).then(res => {
+      const sprites = res.data.sprites;
+      setImgUrl(sprites.other['official-artwork'].front_default);
+    });
+  }, [result]);
   return (
     <View style={styles.container}>
-      <View>
+      <View style={{alignItems: 'center'}}>
         <Image
-          style={{width: 50, height: 50}}
-          source={{uri: 'https://reactnative.dev/img/tiny_logo.png'}}
+          style={{width: 100, height: 100}}
+          source={{uri: imgUrl}}
         />
       </View>
-      <Text>{result.name}</Text>
+      <Text style={{textAlign: 'center'}}>{result.name}</Text>
     </View>
   );
 };
